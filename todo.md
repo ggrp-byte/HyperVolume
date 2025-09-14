@@ -27,6 +27,14 @@
 - [x] 6.1: Przeprowadzenie testów jednostkowych i integracyjnych.
 - [x] 6.2: Budowa aplikacji i stworzenie instalatora.
 
-### Faza 7: Dostarczenie wyników użytkownikowi
-- [x] 7.1: Prezentacja gotowej aplikacji i dokumentacji.
+### Faza 8: Implementacja instalatora i systemu aktualizacji
+- [x] 8.1: Stworzenie instalatora NSIS.
+- [x] 8.2: Implementacja systemu automatycznych aktualizacji.
+- [x] 8.3: Konfiguracja GitHub Actions dla CI/CD.
+- [x] 8.4: Stworzenie przewodnika wdrożenia.
+
+### Faza 9: Finalne testy i dostarczenie rozwiązania
+- [x] 9.1: Finalne testy całego systemu.
+- [x] 9.2: Przygotowanie dokumentacji finalnej.
+- [x] 9.3: Dostarczenie kompletnego rozwiązania.
 
