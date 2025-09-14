@@ -1,0 +1,109 @@
+name: Build and Release HyperVolume
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: hypervolume-app/package-lock.json
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-pc-windows-msvc
+    
+    - name: Install dependencies
+      working-directory: hypervolume-app
+      run: npm install
+    
+    - name: Run tests
+      working-directory: hypervolume-app/src-tauri
+      run: cargo test
+    
+    - name: Build application
+      working-directory: hypervolume-app
+      run: npm run tauri build
+    
+    - name: Setup NSIS
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        Invoke-WebRequest -Uri "https://sourceforge.net/projects/nsis/files/NSIS%203/3.08/nsis-3.08-setup.exe/download" -OutFile "nsis-setup.exe"
+        Start-Process -FilePath "nsis-setup.exe" -ArgumentList "/S" -Wait
+    
+    - name: Create installer
+      if: startsWith(github.ref, 'refs/tags/')
+      working-directory: hypervolume-app
+      run: |
+        Copy-Item "src-tauri\target\release\hypervolume-app.exe" "installer\hypervolume-app.exe"
+        Copy-Item "src-tauri\icons\icon.ico" "installer\icon.ico"
+        & "${env:ProgramFiles}\NSIS\makensis.exe" "installer\installer.nsi"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: hypervolume-windows
+        path: |
+          hypervolume-app/src-tauri/target/release/hypervolume-app.exe
+          hypervolume-app/installer/HyperVolume-Setup.exe
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          hypervolume-app/src-tauri/target/release/hypervolume-app.exe
+          hypervolume-app/installer/HyperVolume-Setup.exe
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: hypervolume-app/package-lock.json
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+    
+    - name: Install dependencies
+      working-directory: hypervolume-app
+      run: npm install
+    
+    - name: Run tests
+      working-directory: hypervolume-app/src-tauri
+      run: cargo test
+    
+    - name: Build application (Linux - for testing only)
+      working-directory: hypervolume-app
+      run: npm run tauri build || echo "Linux build may fail due to Windows-specific audio APIs"
+

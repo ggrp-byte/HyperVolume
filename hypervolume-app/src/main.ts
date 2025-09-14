@@ -8,7 +8,22 @@ interface AudioSession {
   process_id: number;
 }
 
+interface UpdateInfo {
+  version: string;
+  download_url: string;
+  changelog: string;
+  mandatory: boolean;
+}
+
+interface UpdateConfig {
+  auto_check: boolean;
+  check_interval_hours: number;
+  auto_download: boolean;
+  auto_install: boolean;
+}
+
 let audioSessions: AudioSession[] = [];
+let updateCheckInterval: number | null = null;
 
 async function loadAudioSessions() {
   try {
@@ -37,11 +52,107 @@ async function toggleMute(processId: number) {
   }
 }
 
+async function checkForUpdates() {
+  try {
+    const updateInfo: UpdateInfo | null = await invoke("check_for_updates");
+    if (updateInfo) {
+      showUpdateNotification(updateInfo);
+    }
+  } catch (error) {
+    console.error("Failed to check for updates:", error);
+  }
+}
+
+async function downloadAndInstallUpdate(updateInfo: UpdateInfo) {
+  try {
+    showUpdateProgress("Downloading update...");
+    await invoke("download_and_install_update", { updateInfo });
+    showUpdateProgress("Update installed successfully! Restarting...");
+  } catch (error) {
+    console.error("Failed to install update:", error);
+    showUpdateProgress("Update failed: " + error);
+  }
+}
+
+function showUpdateNotification(updateInfo: UpdateInfo) {
+  const notification = document.createElement("div");
+  notification.className = "update-notification";
+  notification.innerHTML = `
+    <div class="update-header">
+      <h3>🎉 Update Available: v${updateInfo.version}</h3>
+      <button class="close-btn" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+    <div class="update-content">
+      <p><strong>Changelog:</strong></p>
+      <div class="changelog">${updateInfo.changelog}</div>
+      <div class="update-actions">
+        <button class="update-btn" onclick="installUpdate('${JSON.stringify(updateInfo).replace(/'/g, "\\'")}')">
+          Install Update
+        </button>
+        <button class="later-btn" onclick="this.parentElement.parentElement.parentElement.remove()">
+          Later
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+}
+
+function showUpdateProgress(message: string) {
+  let progressDiv = document.querySelector(".update-progress") as HTMLElement;
+  if (!progressDiv) {
+    progressDiv = document.createElement("div");
+    progressDiv.className = "update-progress";
+    document.body.appendChild(progressDiv);
+  }
+  progressDiv.textContent = message;
+}
+
+// Global function for onclick handlers
+(window as any).installUpdate = async (updateInfoJson: string) => {
+  const updateInfo = JSON.parse(updateInfoJson);
+  await downloadAndInstallUpdate(updateInfo);
+};
+
+async function setupAutoUpdater() {
+  try {
+    const config: UpdateConfig = await invoke("get_update_config");
+    
+    if (config.auto_check) {
+      // Check for updates on startup
+      setTimeout(checkForUpdates, 5000); // Wait 5 seconds after startup
+      
+      // Set up periodic checks
+      if (updateCheckInterval) {
+        clearInterval(updateCheckInterval);
+      }
+      
+      updateCheckInterval = setInterval(
+        checkForUpdates,
+        config.check_interval_hours * 60 * 60 * 1000
+      );
+    }
+  } catch (error) {
+    console.error("Failed to setup auto-updater:", error);
+  }
+}
+
 function renderAudioSessions() {
   const container = document.querySelector("#sessions-container");
   if (!container) return;
 
   container.innerHTML = "";
+
+  if (audioSessions.length === 0) {
+    container.innerHTML = `
+      <div class="no-sessions">
+        <p>No active audio sessions found.</p>
+        <p>Start playing audio in any application to see it here.</p>
+      </div>
+    `;
+    return;
+  }
 
   audioSessions.forEach((session) => {
     const sessionElement = document.createElement("div");
@@ -101,11 +212,15 @@ function renderAudioSessions() {
 
 window.addEventListener("DOMContentLoaded", () => {
   loadAudioSessions();
+  setupAutoUpdater();
   
   // Refresh sessions every 2 seconds
   setInterval(loadAudioSessions, 2000);
   
   // Add refresh button listener
   document.querySelector("#refresh-btn")?.addEventListener("click", loadAudioSessions);
+  
+  // Add manual update check button listener
+  document.querySelector("#check-updates-btn")?.addEventListener("click", checkForUpdates);
 });
 

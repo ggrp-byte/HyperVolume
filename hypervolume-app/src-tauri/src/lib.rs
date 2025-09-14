@@ -3,6 +3,7 @@ use std::sync::Mutex;
 
 mod audio_manager;
 mod audio_boost;
+mod updater;
 mod tests;
 
 // Global boost manager instance
@@ -58,6 +59,42 @@ fn get_app_boost(process_id: u32) -> Result<f32, String> {
     }
 }
 
+#[tauri::command]
+async fn check_for_updates() -> Result<Option<updater::UpdateInfo>, String> {
+    let current_version = updater::AppVersion::new(1, 0, 0); // Current app version
+    let update_manager = updater::UpdateManager::new(current_version);
+    update_manager.check_for_updates().await
+}
+
+#[tauri::command]
+async fn download_and_install_update(update_info: updater::UpdateInfo) -> Result<(), String> {
+    let current_version = updater::AppVersion::new(1, 0, 0);
+    let update_manager = updater::UpdateManager::new(current_version);
+    
+    let download_path = std::env::temp_dir().join("HyperVolume-Update.exe");
+    
+    // Download the update
+    update_manager.download_update(&update_info, &download_path).await?;
+    
+    // Install the update
+    update_manager.install_update(&download_path)?;
+    
+    // Schedule restart
+    update_manager.schedule_restart()?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn get_update_config() -> updater::UpdateConfig {
+    updater::load_update_config()
+}
+
+#[tauri::command]
+fn save_update_config(config: updater::UpdateConfig) -> Result<(), String> {
+    updater::save_update_config(&config)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize boost manager
@@ -73,7 +110,11 @@ pub fn run() {
             set_app_volume,
             toggle_app_mute,
             set_app_boost,
-            get_app_boost
+            get_app_boost,
+            check_for_updates,
+            download_and_install_update,
+            get_update_config,
+            save_update_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
