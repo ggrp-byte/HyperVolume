@@ -58,18 +58,27 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: hypervolume-windows
-        path: |
-          hypervolume-app/src-tauri/target/release/hypervolume-app.exe
-          hypervolume-app/installer/HyperVolume-Setup.exe
+        name: hypervolume-windows-exe
+        path: hypervolume-app/src-tauri/target/release/hypervolume-app.exe
     
+    - name: Upload installer artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hypervolume-windows-installer
+        path: hypervolume-app/installer/HyperVolume-Setup.exe
+
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          hypervolume-app/src-tauri/target/release/hypervolume-app.exe
-          hypervolume-app/installer/HyperVolume-Setup.exe
+          artifacts/hypervolume-windows-exe/hypervolume-app.exe
+          artifacts/hypervolume-windows-installer/HyperVolume-Setup.exe
         draft: false
         prerelease: false
         generate_release_notes: true
